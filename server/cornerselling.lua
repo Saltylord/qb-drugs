@@ -7,16 +7,34 @@ local function getAvailableDrugs(source)
     if not Player then return nil end
 
     for k in pairs(Config.DrugsPrice) do
-        local item = Player.Functions.GetItemByName(k)
+        if k == 'weed' then
+            local items = exports.ox_inventory:Search(source, 'slots', k, false)
 
-        if item then
-            AvailableDrugs[#AvailableDrugs + 1] = {
-                item = item.name,
-                amount = item.amount,
-                label = QBCore.Shared.Items[item.name]["label"]
-            }
+            if items then
+                for i = 1, #items do
+                    AvailableDrugs[#AvailableDrugs + 1] = {
+                        item = items[i].name,
+                        amount = items[i].count,
+                        label = items[i].metadata.strain,
+                        metadata = items[i].metadata
+                    }
+                end
+            end
+        end
+
+        local items = exports.ox_inventory:Search(source, 'slots', k, false)
+
+        if items then
+            for i = 1, #items do
+                AvailableDrugs[#AvailableDrugs + 1] = {
+                    item = items[i].name,
+                    amount = items[i].count,
+                    label = items[i].label
+                }
+            end
         end
     end
+
     return table.type(AvailableDrugs) ~= "empty" and AvailableDrugs or nil
 end
 
