@@ -1,6 +1,9 @@
 # qb-drugs
 Drugs Script For QB-Core
 
+# Information
+THIS SCIRPT IS A WIP AND WILL BE A CONVERSION FROM qb-inventory TO ox_inventory
+
 # License
 
     QBCore Framework
