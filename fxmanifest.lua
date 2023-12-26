@@ -6,6 +6,8 @@ version '1.3'
 
 shared_scripts{
     'config.lua',
+    '@oxmysql/lib/MySQL.lua',
+    '@ox_lib/init.lua',
     '@qb-core/shared/locale.lua',
     'locales/en.lua',
     'locales/*.lua'
