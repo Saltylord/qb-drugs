@@ -1,4 +1,4 @@
-local StolenDrugs = {}
+local stolenItems = {}
 
 local function getAvailableDrugs(source)
     local AvailableDrugs = {}
@@ -42,22 +42,27 @@ lib.callback.register('qb-drugs:server:cornerSelling:getAvailableDrugs', functio
     return availableDrugs
 end)
 
-RegisterNetEvent('qb-drugs:server:retrieveStolenDrugs', function(data)
+RegisterNetEvent('qb-drugs:server:retrieveStolenDrugs', function()
     local src = source
     local Player = QBCore.Functions.GetPlayer(src)
+    local cid = Player.PlayerData.citizenid
 
-    if not Player or not data.coords then return end
-    if #(GetEntityCoords(GetPlayerPed(src)) - vec3(data.coords.x, data.coords.y, data.coords.z)) > 5 then return end
+    if not Player or stolenItems.citizenid ~= cid then return end
 
-    exports.ox_inventory:AddItem(src, data.offer.item, data.offer.amount, data.offer.metadata)
+    exports.ox_inventory:AddItem(src, stolenItems.offer.item, stolenItems.offer.amount, stolenItems.offer.metadata)
 end)
 
 RegisterNetEvent('qb-drugs:server:removeStolenDrugs', function(data)
     local src = source
     local Player = QBCore.Functions.GetPlayer(src)
+    local cid = Player.PlayerData.citizenid
 
     if not Player or not data.coords then return end
-    if #(GetEntityCoords(GetPlayerPed(src)) - vec3(data.coords.x, data.coords.y, data.coords.z)) > 5 then return end
+    if #(GetEntityCoords(GetPlayerPed(src)) - vec3(data.coords.x, data.coords.y, data.coords.z)) > 10 then return end
+    stolenItems = {
+        citizenid = cid,
+        items = data
+    }
 
     exports.ox_inventory:RemoveItem(src, data.offer.item, data.offer.amount, data.offer.metadata)
 end)

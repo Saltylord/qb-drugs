@@ -60,7 +60,7 @@ local function acceptOffer(offer)
             distance = 2.0,
             label = 'Retrieve Drugs',
             onSelect = function()
-                if lib.progressBar({ duration = 5000, label = 'Retrieve Drugs', useWhileDead = false, canCancel = false, disable = { move = false, combat = false, car = false, }, anim = { dict = 'pickup_object', clip = 'pickup_low'},}) then
+                if lib.progressBar({ duration = 2000, label = 'Retrieve Drugs', useWhileDead = false, canCancel = false, disable = { move = false, combat = false, car = false, }, anim = { dict = 'pickup_object', clip = 'pickup_low'},}) then
                     local data = {
                         offer = offer,
                         coords = npcs.selected.coords
@@ -158,7 +158,7 @@ local function generateNPCOffer(offer)
     lib.showContext('offer_menu')
 end
 
-local function targetSelected()
+local function selectTarget()
     local walking = false
 
     for _, v in pairs(npcs.used) do
@@ -203,26 +203,6 @@ local function targetSelected()
             TaskGoStraightToCoord(npcs.selected.ped, coords, 1.2, -1, 0.0, 0.0)
 
             if npcDist < 1.5 then
-                TaskLookAtEntity(npcs.selected.ped, player, 5500.0, 2048, 3)
-                TaskTurnPedToFaceEntity(npcs.selected.ped, player, 5500)
-                TaskStartScenarioInPlace(npcs.selected.ped, "WORLD_HUMAN_STAND_IMPATIENT_UPRIGHT", 0, false)
-                walking = false
-            end
-            Wait(100)
-        end
-    end)
-
-    local selectedTarget = true
-    CreateThread(function()
-        while selectedTarget do
-            local coords = GetEntityCoords(player, true)
-            local npcCoords = GetEntityCoords(npcs.selected.ped)
-            local pedDist2 = #(coords - npcCoords)
-            local robbery = math.random(1, 100)
-
-            if IsPedDeadOrDying(npcs.selected.ped) then return end
-
-            if cornerSelling then
                 local option = {
                     {
                         name = 'buying_npc',
@@ -242,8 +222,11 @@ local function targetSelected()
                     }
                 }
 
+                TaskLookAtEntity(npcs.selected.ped, player, 5500.0, 2048, 3)
+                TaskTurnPedToFaceEntity(npcs.selected.ped, player, 5500)
+                TaskStartScenarioInPlace(npcs.selected.ped, "WORLD_HUMAN_STAND_IMPATIENT_UPRIGHT", 0, false)
                 exports.ox_target:addLocalEntity(npcs.selected.ped, option)
-                selectedTarget = false
+                walking = false
             end
             Wait(100)
         end
@@ -272,7 +255,7 @@ local function startSelling()
 
             if closestDistance < 15.0 and not IsPedDeadOrDying(closestPed) and closestPed ~= 0 and not IsPedInAnyVehicle(closestPed) and GetPedType(closestPed) ~= 28 then
                 npcs.selected.ped = closestPed
-                targetSelected()
+                selectTarget()
             end
         end
 
