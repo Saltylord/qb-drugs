@@ -1,32 +1,35 @@
+QBCore = exports['qb-core']:GetCoreObject()
 local cornerSelling = false
+local stealing = false
+local currentCops = 0
 local npcs = {
     selected = {
-        ped = nil,
-        coords = nil
+        ped = nil
     },
     available = {},
     used = {}
 }
 
-local CurrentCops = 0
-
 local function cancelSelling()
-    QBCore.Functions.Notify(Lang:t("error.too_far_away"), 'error')
+    if not stealing then
+        ClearPedTasks(npcs.selected.ped)
+        exports.ox_target:removeLocalEntity(npcs.selected.ped)
+        npcs.selected.ped = nil
+    end
+
     LocalPlayer.state.invBusy = false
-    npcs.selected.ped = nil
     cornerSelling = false
+    TriggerServerEvent('qb-drugs:server:cancelSelling')
 end
 
--- Fixed:
--- swapped the condition to `random <= Config.PoliceCallChance` so "Config.PoliceCallChance", represents the call probability.
-local function PoliceCall()
+local function alertPolice()
     local random = math.random(1, 100)
     if random <= Config.PoliceCallChance then
         TriggerServerEvent('police:server:policeAlert', 'Drug sale in progress')
     end
 end
 
-local function acceptOffer(offer)
+local function acceptOffer()
     local ped = PlayerPedId()
 
     if IsPedInAnyVehicle(ped, false) then
@@ -42,17 +45,14 @@ local function acceptOffer(offer)
         local coords = GetEntityCoords(player)
         local npcCoords = GetEntityCoords(npcs.selected.ped)
         local selectedCoords = {x = coords.x + math.random(100, 500), y = coords.y + math.random(100, 500), z = coords.z}
-        local stealing = true
-        local data = {
-            offer = offer,
-            coords = npcCoords
-        }
+        stealing = true
 
-        TriggerServerEvent('qb-drugs:server:removeStolenDrugs', data)
+        TriggerServerEvent('qb-drugs:server:stealDrugsFromPlayer')
         npcs.used[#npcs.used + 1] = npcs.selected.ped
         ClearPedTasksImmediately(npcs.selected.ped)
         TaskGoStraightToCoord(npcs.selected.ped, selectedCoords.x, selectedCoords.y, selectedCoords.z, 15.0, -1, 0.0, 0.0)
         exports.ox_target:removeLocalEntity(npcs.selected.ped)
+        cancelSelling()
 
         local option = {
             name = 'stealing_npc',
@@ -61,11 +61,7 @@ local function acceptOffer(offer)
             label = 'Retrieve Drugs',
             onSelect = function()
                 if lib.progressBar({ duration = 2000, label = 'Retrieve Drugs', useWhileDead = false, canCancel = false, disable = { move = false, combat = false, car = false, }, anim = { dict = 'pickup_object', clip = 'pickup_low'},}) then
-                    local data = {
-                        offer = offer,
-                        coords = npcs.selected.coords
-                    }
-                    TriggerServerEvent('qb-drugs:server:retrieveStolenDrugs', data)
+                    TriggerServerEvent('qb-drugs:server:retrieveDrugsFromNPC')
                     ClearPedTasks(ped)
                     npcs.selected.ped = nil
                     stealing = false
@@ -74,7 +70,6 @@ local function acceptOffer(offer)
         }
 
         exports.ox_target:addLocalEntity(npcs.selected.ped, option)
-        QBCore.Functions.Notify(Lang:t("info.has_been_robbed", {bags = offer.amount, drugType = offer.metadata.strain}))
 
         CreateThread(function()
             while stealing do
@@ -82,29 +77,22 @@ local function acceptOffer(offer)
                 local npcCoords = GetEntityCoords(npcs.selected.ped)
                 local dist = #(coords - npcCoords)
 
-                if not IsPedDeadOrDying(npcs.selected.ped) then
-                    npcs.selected.coords = npcCoords
-                end
-
                 if dist > 100 then
                     exports.ox_target:removeLocalEntity(npcs.selected.ped)
                     stealing = false
                     npcs.selected.ped = nil
+                    TriggerServerEvent('qb-drugs:server:clearOffer')
                 end
                 Wait(250)
             end
         end)
+
         return
     end
 
-    if lib.progressBar({ duration = 5000, label = 'Handing over products', useWhileDead = false, canCancel = false, disable = { move = false, combat = false, car = false, }, anim = { dict = 'gestures@f@standing@casual', clip = 'gesture_point'},}) then
-        local npcCoords = GetEntityCoords(npcs.selected.ped)
-        local data = {
-            offer = offer,
-            coords = npcCoords
-        }
-        PoliceCall()
-        TriggerServerEvent('qb-drugs:server:sellDrugs', data)
+    if lib.progressBar({ duration = 2000, label = 'Handing over products', useWhileDead = false, canCancel = false, disable = { move = false, combat = false, car = false, }, anim = { dict = 'mp_doorbell', clip = 'ring_bell_a', playbackRate = 5.0}, prop = {model = `bzzz_prop_gift_orange`, bone = 57005, pos = vec3(0.15, -0.03, -0.14), rot = vec3(-77.0, -120.0, 40.0)},}) then
+        -- alertPolice()
+        TriggerServerEvent('qb-drugs:server:sellDrugs')
     end
 
     SetPedKeepTask(npcs.selected.ped, false)
@@ -113,7 +101,6 @@ local function acceptOffer(offer)
     npcs.used[#npcs.used + 1] = npcs.selected.ped
     exports.ox_target:removeLocalEntity(npcs.selected.ped)
     npcs.selected.ped = nil
-    npcs.selected.coords = nil
 end
 
 local function declineOffer()
@@ -124,34 +111,35 @@ local function declineOffer()
     npcs.used[#npcs.used + 1] = npcs.selected.ped
     exports.ox_target:removeLocalEntity(npcs.selected.ped)
     npcs.selected.ped = nil
-    npcs.selected.coords = nil
 end
 
-local function generateNPCOffer(offer)
+local function generateNPCOffer()
+    local offer = lib.callback.await('qb-drugs:callback:getCurrentOffer', false)
+
     lib.registerContext({
         id = 'offer_menu',
         title = 'Local Offer',
         options = {
-          {
-            title = 'Type: '..offer.metadata.strain,
-            description = 'Amount: '..offer.amount..' \n Price: '..offer.price,
-          },
-          {
-            title = 'Accept Offer',
-            description = 'This button is disabled',
-            icon = 'circle-check',
-            onSelect = function()
-                acceptOffer(offer)
-            end,
-          },
-          {
-            title = 'Decline Offer',
-            description = 'Example button description',
-            icon = 'circle-xmark',
-            onSelect = function()
-                declineOffer()
-            end
-          },
+            {
+                title = 'Type: '..offer.item:gsub("^%l", string.upper),
+                description = 'Amount: '..offer.amount..' \n Price: '..offer.price,
+            },
+            {
+                title = 'Accept Offer',
+                description = 'This button is disabled',
+                icon = 'circle-check',
+                onSelect = function()
+                    acceptOffer()
+                end,
+            },
+            {
+                title = 'Decline Offer',
+                description = 'Example button description',
+                icon = 'circle-xmark',
+                onSelect = function()
+                    declineOffer()
+                end
+            },
         }
     })
 
@@ -173,14 +161,7 @@ local function selectTarget()
         return
     end
 
-    local availableDrugs = lib.callback.await('qb-drugs:server:cornerSelling:getAvailableDrugs', false)
-    local drug = math.random(1, #availableDrugs)
-    local amount = math.random(1, availableDrugs[drug].amount)
-    if amount > 15 then amount = math.random(9, 15) end
-
-    local drugPrice = Config.DrugsPrice[availableDrugs[drug].item]
-    local randomPrice = math.random(drugPrice.min, drugPrice.max) * amount
-    if math.random(1, 100) <= Config.ScamChance then randomPrice = math.random(3, 10) * amount end
+    TriggerServerEvent('qb-drugs:server:createOffer')
 
     SetEntityAsNoLongerNeeded(npcs.selected.ped)
     ClearPedTasks(npcs.selected.ped)
@@ -210,14 +191,7 @@ local function selectTarget()
                         distance = 2.0,
                         label = 'View Offer',
                         onSelect = function()
-                            local offer = {
-                                item = availableDrugs[drug].item,
-                                metadata = availableDrugs[drug].metadata,
-                                amount = amount,
-                                price = randomPrice
-                            }
-
-                            generateNPCOffer(offer)
+                            generateNPCOffer()
                         end
                     }
                 }
@@ -228,19 +202,16 @@ local function selectTarget()
                 exports.ox_target:addLocalEntity(npcs.selected.ped, option)
                 walking = false
             end
-            Wait(100)
+            Wait(250)
         end
     end)
 end
 
 local function startSelling()
     local ped = PlayerPedId()
-
-    if cornerSelling then return end
+    local startingCoords = GetEntityCoords(ped)
     cornerSelling = true
     LocalPlayer.state.invBusy = true
-    QBCore.Functions.Notify(Lang:t("info.started_selling_drugs"))
-    local startingCoords = GetEntityCoords(ped)
 
     while cornerSelling do
         local currentCoords = GetEntityCoords(ped)
@@ -260,35 +231,42 @@ local function startSelling()
         end
 
         if #(startingCoords - currentCoords) > 10 then
+            QBCore.Functions.Notify(Lang:t("error.too_far_away"), 'error')
             cancelSelling()
         end
 
-        Wait(1000)
+        Wait(Config.NewTargetWait * 1000)
     end
 end
 
 -- Events
-RegisterNetEvent('qb-drugs:client:cornerselling', function()
-    lib.callback('qb-drugs:server:cornerSelling:getAvailableDrugs', false, function(result)
-        if not result then
-            QBCore.Functions.Notify(Lang:t("error.has_no_drugs"), 'error')
-            return
-        end
+RegisterNetEvent('qb-drugs:client:startCornerSelling', function()
+    if cornerSelling then
+        QBCore.Functions.Notify(Lang:t("info.stopped_selling_drugs"), 'error')
+        cancelSelling()
+        return
+    end
 
-        -- if CurrentCops <= Config.MinimumDrugSalePolice then
-        --     QBCore.Functions.Notify(Lang:t("error.not_enough_police", {polices = Config.MinimumDrugSalePolice}), "error")
-        --     return
-        -- end
+    if IsPedInAnyVehicle(PlayerPedId(), false) then
+        QBCore.Functions.Notify(Lang:t("error.in_vehicle"), 'error')
+        return
+    end
 
-        if IsPedInAnyVehicle(PlayerPedId(), false) then
-            QBCore.Functions.Notify(Lang:t("error.in_vehicle"), 'error')
-            return
-        end
-
+    if currentCops >= Config.MinimumDrugSalePolice then
+        TriggerServerEvent('qb-drugs:server:setAvailableDrugs')
         startSelling()
-    end)
+    else
+        QBCore.Functions.Notify(Lang:t("error.not_enough_police", {polices = Config.MinimumDrugSalePolice}), "error")
+    end
+end)
+
+RegisterNetEvent('qb-drugs:client:stopCornerSelling', function()
+    if not cornerSelling then return end
+    LocalPlayer.state.invBusy = false
+    npcs.selected.ped = nil
+    cornerSelling = false
 end)
 
 RegisterNetEvent('police:SetCopCount', function(amount)
-    CurrentCops = amount
+    currentCops = amount
 end)

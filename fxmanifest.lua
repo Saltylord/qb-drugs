@@ -1,30 +1,23 @@
 fx_version 'cerulean'
 game 'gta5'
 
-description 'QB-Drugs'
-version '1.3'
+description 'QB-Drugs by Saltylord'
+version '1.0'
 
 shared_scripts{
     'config.lua',
     '@oxmysql/lib/MySQL.lua',
     '@ox_lib/init.lua',
     '@qb-core/shared/locale.lua',
-    'locales/en.lua',
     'locales/*.lua'
 }
 
 client_scripts{
-    '@PolyZone/client.lua',
-    '@PolyZone/BoxZone.lua',
-    '@PolyZone/ComboZone.lua',
-    'client/deliveries.lua',
-    'client/cornerselling.lua'
+    'client/*.lua'
 }
 
 server_scripts{
-    '@oxmysql/lib/MySQL.lua',
-    'server/deliveries.lua',
-    'server/cornerselling.lua'
+    'server/*.lua'
 }
 
 lua54 'yes'
