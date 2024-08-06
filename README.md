@@ -1,3 +1,6 @@
+# Saltylord
+THIS SCRIPT IS A WIP AND IS NOT COMPLETED!!
+
 # qb-drugs
 Drugs Script For QB-Core
 
