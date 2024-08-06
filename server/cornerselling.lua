@@ -5,8 +5,8 @@ local currentOffers = {}
 local function getAvailableDrugs(source)
     local drugs = {}
 
-    for k in pairs(Config.DrugsPrice) do
-        local items = exports.ox_inventory:Search(source, 'slots', k, false)
+    for drug in pairs(Config.drugs) do
+        local items = exports.ox_inventory:Search(source, 'slots', drug, false)
 
         for i = 1, #items do
             if not next(items[i].metadata) then
@@ -91,9 +91,9 @@ RegisterNetEvent('qb-drugs:server:createOffer', function()
     local amount = math.random(1, availableDrugs[cid][drug].amount)
     if amount > 15 then amount = math.random(9, 15) end
 
-    local drugPrice = Config.DrugsPrice[availableDrugs[cid][drug].item]
+    local drugPrice = Config.drugs[availableDrugs[cid][drug].item]
     local randomPrice = math.random(drugPrice.min, drugPrice.max) * amount
-    if math.random(1, 100) <= Config.ScamChance then randomPrice = math.random(3, 10) * amount end
+    if math.random(1, 100) <= Config.badOfferChance then randomPrice = math.random(3, 10) * amount end
 
     if not availableDrugs[cid][drug].metadata then
         currentOffers[cid] = {
